@@ -366,6 +366,33 @@
             display: none;
         }
 
+        .btn-issue {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            color: white;
+        }
+
+        .btn-issue:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .github-section {
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .github-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         @media (max-width: 600px) {
             .header h1 {
                 font-size: 1.8em;
@@ -465,6 +492,29 @@
                 <div class="preview" id="preview" style="display: none;">
                     <h3>📄 プレビュー</h3>
                     <pre id="previewContent"></pre>
+                </div>
+
+                <!-- GitHub Issue 作成セクション -->
+                <div class="github-section">
+                    <h3>🐙 GitHub Issue として登録 ※ワークショップ外では使用しないこと！</h3>
+                    
+                    <div class="form-group">
+                        <label for="repoUrl">GitHub リポジトリ URL</label>
+                        <input type="text" id="repoUrl" placeholder="例：https://github.com/owner/repo">
+                        <div class="help-text">リポジトリの URL を入力してください（例：https://github.com/AIGameLabWorkshop/AiGameModdingLab-20260805-teamX）</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="githubToken">Personal Access Token</label>
+                        <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+                        <div class="help-text">GitHub トークンを入力してください（ワークショップの外で使わないこと！）</div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="btn-issue" onclick="createGithubIssue()">🚀 GitHub Issue を作成</button>
+                    </div>
+
+                    <div class="success-message" id="githubMessage"></div>
                 </div>
             </form>
         </div>
@@ -648,7 +698,150 @@
             }, 3000);
         }
 
+        function showGithubMessage(message, isError = false) {
+            const githubMessage = document.getElementById('githubMessage');
+            githubMessage.textContent = message;
+            githubMessage.classList.add('show');
+            if (isError) {
+                githubMessage.style.background = '#f8d7da';
+                githubMessage.style.color = '#721c24';
+                githubMessage.style.borderColor = '#f5c6cb';
+            } else {
+                githubMessage.style.background = '#d4edda';
+                githubMessage.style.color = '#155724';
+                githubMessage.style.borderColor = '#c3e6cb';
+            }
+            setTimeout(() => {
+                githubMessage.classList.remove('show');
+            }, 4000);
+        }
+
+        async function createGithubIssue() {
+            const repoUrl = document.getElementById('repoUrl').value.trim();
+            const token = document.getElementById('githubToken').value.trim();
+            const teamName = document.getElementById('teamName').value || '（未入力）';
+            const trigger = document.getElementById('trigger').value || '（未入力）';
+            const action = document.getElementById('action').value || '（未入力）';
+            const test = document.getElementById('test').value || '（未入力）';
+
+            // バリデーション
+            if (!repoUrl) {
+                showGithubMessage('❌ リポジトリ URL を入力してください', true);
+                return;
+            }
+            if (!token) {
+                showGithubMessage('❌ Personal Access Token を入力してください', true);
+                return;
+            }
+            if (!teamName || teamName === '（未入力）') {
+                showGithubMessage('❌ チーム名を入力してください', true);
+                return;
+            }
+            if (!trigger || trigger === '（未入力）') {
+                showGithubMessage('❌ TRIGGER を入力してください', true);
+                return;
+            }
+            if (!action || action === '（未入力）') {
+                showGithubMessage('❌ ACTION を入力してください', true);
+                return;
+            }
+            if (!test || test === '（未入力）') {
+                showGithubMessage('❌ TEST を入力してください', true);
+                return;
+            }
+
+            // リポジトリ URL から owner と repo を抽出
+            let owner, repo;
+            try {
+                const urlParts = repoUrl.replace('https://github.com/', '').replace('http://github.com/', '').replace('.git', '').split('/');
+                owner = urlParts[0];
+                repo = urlParts[1];
+                if (!owner || !repo) throw new Error();
+            } catch (e) {
+                showGithubMessage('❌ リポジトリ URL の形式が正しくありません（例：https://github.com/owner/repo）', true);
+                return;
+            }
+
+            // Issue本文を生成
+            const issueTitle = `[仕様書] ${teamName}`;
+            const issueBody = `# 🚀 爆速・魔改造シート（3行仕様書）
+
+**チーム名（または名前）:** ${teamName}
+
+---
+
+## 1. いつ？（TRIGGER）
+${trigger}
+
+## 2. どうなる？（ACTION）
+${action}
+
+## 3. どうなっていれば大成功？（TEST）
+${test}
+
+---
+
+*このIssueは [仕様書ジェネレータ](https://pages.github.com/) から自動生成されました。*`;
+
+            try {
+                showGithubMessage('⏳ GitHub Issue を作成中...', false);
+                
+                const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        title: issueTitle,
+                        body: issueBody,
+                        labels: ['feature-request', 'mod'],
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    const errorMsg = errorData.message || '不明なエラーが発生しました';
+                    showGithubMessage(`❌ エラー: ${errorMsg}`, true);
+                    console.error('GitHub API Error:', errorData);
+                    return;
+                }
+
+                const data = await response.json();
+                showGithubMessage(`✅ Issue を作成しました！#${data.number} - ${data.html_url}`, false);
+                
+            } catch (error) {
+                showGithubMessage(`❌ エラーが発生しました: ${error.message}`, true);
+                console.error('Error:', error);
+            }
+        }
+
+        // LocalStorage から GitHub 設定を復元
+        function initializeGithubSettings() {
+            const savedRepoUrl = localStorage.getItem('githubRepoUrl');
+            const savedToken = localStorage.getItem('githubToken');
+            
+            if (savedRepoUrl) {
+                document.getElementById('repoUrl').value = savedRepoUrl;
+            }
+            if (savedToken) {
+                document.getElementById('githubToken').value = savedToken;
+            }
+        }
+
+        // repoUrl の変更を監視して LocalStorage に保存
+        document.getElementById('repoUrl').addEventListener('change', function() {
+            localStorage.setItem('githubRepoUrl', this.value.trim());
+        });
+
+        // githubToken の変更を監視して LocalStorage に保存
+        document.getElementById('githubToken').addEventListener('change', function() {
+            localStorage.setItem('githubToken', this.value);
+        });
+
         // 初期化
+        initializeGithubSettings();
         updatePreview();
     </script>
 </body>
