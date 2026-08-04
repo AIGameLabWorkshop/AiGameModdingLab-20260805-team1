@@ -1,0 +1,25 @@
+{
+  "name": "BrickBreaker",
+  "short_name": "BrickBreaker",
+  "description": "ブロックをこわしてステージをクリアする BrickBreaker のPWA版",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b132b",
+  "theme_color": "#1c2541",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

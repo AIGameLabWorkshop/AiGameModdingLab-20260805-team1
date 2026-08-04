@@ -1,0 +1,7 @@
+ABBBBBBBBA
+BA......AB
+B.A....A.B
+B..ABBA..B
+B.A....A.B
+BA......AB
+ABBB..BBBA

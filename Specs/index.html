@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrickBreaker 魔改造仕様書ジェネレータ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px 28px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-copy {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn-copy:hover {
+            background: #e8e8e8;
+            border-color: #999;
+        }
+
+        .btn-reset {
+            background: #f5f5f5;
+            color: #666;
+            border: 2px solid #ddd;
+        }
+
+        .btn-reset:hover {
+            background: #ececec;
+            border-color: #999;
+        }
+
+        .preview {
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .preview h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .preview pre {
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .success-message {
+            display: none;
+            background: #d4edda;
+            color: #155724;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .success-message.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tips {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            color: #1565c0;
+        }
+
+        .tips strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .samples {
+            background: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            color: #6a1b9a;
+        }
+
+        .samples strong {
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        .sample-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .sample-link {
+            display: inline-block;
+            padding: 10px 15px;
+            background: white;
+            border: 2px solid #9c27b0;
+            border-radius: 6px;
+            color: #6a1b9a;
+            text-decoration: none;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .sample-link:hover {
+            background: #9c27b0;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .sample-level {
+            display: block;
+            font-size: 0.8em;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 12px;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90%;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            color: #667eea;
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        .close-modal {
+            font-size: 32px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: #333;
+        }
+
+        .sample-section {
+            margin-bottom: 25px;
+        }
+
+        .sample-section h3 {
+            color: #764ba2;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sample-section p {
+            color: #333;
+            line-height: 1.8;
+            font-size: 1em;
+            margin: 0;
+            padding-left: 20px;
+            border-left: 3px solid #667eea;
+        }
+
+        .modal-spec {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+            font-family: inherit;
+            font-size: 1em;
+            line-height: 1;
+            white-space: normal;
+            word-wrap: normal;
+            margin-bottom: 0;
+            max-height: none;
+            overflow-y: visible;
+        }
+
+        .modal-actions {
+            display: none;
+        }
+
+        .btn-use-sample {
+            display: none;
+        }
+
+        .btn-use-sample:hover {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                min-width: auto;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 爆速・魔改造シート</h1>
+            <p>BrickBreaker 仕様書ジェネレータ</p>
+        </div>
+
+        <div class="content">
+            <div class="tips">
+                <strong>💡 Tips：良い仕様書のポイント</strong>
+                短く・わかりやすく・具体的に！AIが実装しやすい仕様書を目指しましょう
+            </div>
+
+            <div class="samples">
+                <strong>📚 サンプル仕様書を見てみる</strong>
+                <div class="sample-list">
+                    <button class="sample-link" onclick="showSample('simple')">
+                        📦 シンプルパワーアップ
+                        <span class="sample-level">⭐ 地味</span>
+                    </button>
+                    <button class="sample-link" onclick="showSample('particle')">
+                        💥 パーティクル爆発
+                        <span class="sample-level">⭐⭐ 派手</span>
+                    </button>
+                    <button class="sample-link" onclick="showSample('reversal')">
+                        ⏮️ タイムリバーサル
+                        <span class="sample-level">⭐⭐⭐ 超派手</span>
+                    </button>
+                    <button class="sample-link" onclick="showSample('boss')">
+                        🎮 ボスシューティング
+                        <span class="sample-level">⭐⭐⭐⭐ 究極</span>
+                    </button>
+                </div>
+            </div>
+
+            <form id="specForm">
+                <div class="form-group">
+                    <label for="teamName">👥 チーム名（または名前）</label>
+                    <input type="text" id="teamName" placeholder="例：パワーアップ班 or 山田太郎">
+                    <div class="help-text">仕様書の作成者を記入してください</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="trigger">1️⃣ いつ？（TRIGGER）</label>
+                    <textarea id="trigger" placeholder="短く書く：いつこの変化が始まるか&#10;例：ボールがブロックに当たったとき、プレイヤーがスペースキーを押したとき"></textarea>
+                    <div class="help-text">
+                        <strong>何が起きたら機能が発動するかを書きます</strong><br>
+                        ボールがブロックに当たったとき / キーを押したとき / 条件を満たしたとき など
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action">2️⃣ どうなる？（ACTION）</label>
+                    <textarea id="action" placeholder="短く書く：ゲームの中で何が起きるか（見た目や変化）&#10;例：スコアが＋10になり、ブロックが変顔になって消える"></textarea>
+                    <div class="help-text">
+                        <strong>ゲーム画面で実際に起きる変化を書きます</strong><br>
+                        パドルが大きくなる / 爆発が起きる / スコアが増える など
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="test">3️⃣ どうなっていれば大成功？（TEST）</label>
+                    <textarea id="test" placeholder="短く書く：どうなっていればクリア（合格）とするか&#10;例：ブロックに当たるとスコアが10増え、変顔の消え方が見えたらOK！"></textarea>
+                    <div class="help-text">
+                        <strong>実装が成功したかを判定する条件を書きます</strong><br>
+                        見た目で判定できることを書くと良いです
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button type="button" class="btn-download" onclick="downloadSpec()">📥 MDファイルでダウンロード</button>
+                    <button type="button" class="btn-copy" onclick="copyToClipboard()">📋 クリップボードにコピー</button>
+                    <button type="button" class="btn-reset" onclick="resetForm()">🔄 リセット</button>
+                </div>
+
+                <div class="success-message" id="successMessage"></div>
+
+                <div class="preview" id="preview" style="display: none;">
+                    <h3>📄 プレビュー</h3>
+                    <pre id="previewContent"></pre>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- サンプル表示モーダル -->
+    <div id="sampleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle"></h2>
+                <button class="close-modal" onclick="closeSample()">&times;</button>
+            </div>
+            <div class="modal-spec" id="modalSpec"></div>
+            <div style="text-align: right;">
+                <button class="btn-reset" onclick="closeSample()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // サンプルデータ
+        const samples = {
+            simple: {
+                title: '📦 シンプルパワーアップ班',
+                teamName: 'シンプルパワーアップ班',
+                trigger: 'ゴールドブロック（黄色）に当たったとき',
+                action: 'パドルのサイズが1.5倍に大きくなり、画面に「POWER UP!」というテキストが表示される',
+                test: 'ゴールドブロックに当たると、パドルが明らかに大きくなり、そのあと3秒後に元のサイズに戻ればOK！'
+            },
+            particle: {
+                title: '💥 爆発パーティクル研究所',
+                teamName: '爆発パーティクル研究所',
+                trigger: 'ボールが3個以上のブロックに連続で当たったとき（コンボが発生したとき）',
+                action: 'ボールの衝突地点から100個以上の虹色のパーティクルが爆発的に飛び散り、画面全体が一瞬フラッシュする。スコアが10倍になり、爆発音が鳴る',
+                test: 'コンボが起きるたびにド派手な爆発が見え、スコアが通常の10倍増えて、爆発音が聞こえればOK！'
+            },
+            reversal: {
+                title: '⏮️ タイムリバーサル開発隊',
+                teamName: 'タイムリバーサル開発隊',
+                trigger: 'プレイヤーが「R」キーを長押し（2秒以上）したとき',
+                action: '画面全体が逆さまに反転し、すべてのボールと壊したブロックが1秒前の状態に戻る。ボールの軌跡がエフェクトとして残る',
+                test: 'Rキーを長押しすると画面が反転し、ボールやブロックが数秒前に戻り、軌跡エフェクトが見えたらOK！バッテリーが1消費される（最大5回まで）'
+            },
+            boss: {
+                title: '🎮 ボスバトル降臨プロジェクト',
+                teamName: 'ボスバトル降臨プロジェクト',
+                trigger: 'ステージのすべてのブロックを壊し終えたとき（ステージをクリアしたとき）',
+                action: '画面中央に巨大なボスキャラが出現し、通常のボール・パドル・ブロックが消える。プレイヤーはマウスをドラッグして照準を合わせ、クリックでボスを撃つシューティングゲームに切り替わる。ボスから発射される光線を避けながら戦う',
+                test: 'ブロック崩しが終わった瞬間にボスが出現し、シューティングゲームに完全に切り替わり、ボスの体力バーが見えて射撃できれば大成功！ボスを倒すとゲームクリアになればOK！'
+            }
+        };
+
+        let currentSample = null;
+
+        function showSample(sampleKey) {
+            currentSample = sampleKey;
+            const sample = samples[sampleKey];
+            
+            document.getElementById('modalTitle').textContent = sample.title;
+            
+            const specHtml = `
+                <div class="sample-section">
+                    <h3>1️⃣ いつ？（TRIGGER）</h3>
+                    <p>${sample.trigger}</p>
+                </div>
+                <div class="sample-section">
+                    <h3>2️⃣ どうなる？（ACTION）</h3>
+                    <p>${sample.action}</p>
+                </div>
+                <div class="sample-section">
+                    <h3>3️⃣ どうなっていれば大成功？（TEST）</h3>
+                    <p>${sample.test}</p>
+                </div>
+            `;
+            
+            document.getElementById('modalSpec').innerHTML = specHtml;
+            document.getElementById('sampleModal').classList.add('show');
+        }
+
+        function closeSample() {
+            document.getElementById('sampleModal').classList.remove('show');
+            currentSample = null;
+        }
+
+        // モーダル外クリックで閉じる
+        window.onclick = function(event) {
+            const modal = document.getElementById('sampleModal');
+            if (event.target === modal) {
+                closeSample();
+            }
+        }
+
+        // リアルタイムプレビュー
+        const formInputs = document.querySelectorAll('#specForm input, #specForm textarea');
+        formInputs.forEach(input => {
+            input.addEventListener('input', updatePreview);
+        });
+
+        function generateMarkdown() {
+            const teamName = document.getElementById('teamName').value || '（未入力）';
+            const trigger = document.getElementById('trigger').value || '（未入力）';
+            const action = document.getElementById('action').value || '（未入力）';
+            const test = document.getElementById('test').value || '（未入力）';
+
+            return `# 🚀 爆速・魔改造シート（3行仕様書）
+
+* **チーム名（または名前）:** ${teamName}
+
+---
+
+### 1. いつ？（TRIGGER）
+* **短く書く：いつこの変化が始まるか**
+* ${trigger}
+
+
+### 2. どうなる？（ACTION）
+* **短く書く：ゲームの中で何が起きるか（見た目や変化）**
+* ${action}
+
+
+### 3. どうなっていれば大成功？（TEST）
+* **短く書く：どうなっていればクリア（合格）とするか**
+* ${test}
+`;
+        }
+
+        function updatePreview() {
+            const preview = document.getElementById('preview');
+            const previewContent = document.getElementById('previewContent');
+
+            if (document.getElementById('teamName').value ||
+                document.getElementById('trigger').value ||
+                document.getElementById('action').value ||
+                document.getElementById('test').value) {
+                preview.style.display = 'block';
+                previewContent.textContent = generateMarkdown();
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        function downloadSpec() {
+            const teamName = document.getElementById('teamName').value || 'spec';
+            const sanitizedName = teamName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const markdown = generateMarkdown();
+
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${sanitizedName}_spec.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showSuccessMessage('✅ MDファイルをダウンロードしました！');
+        }
+
+        function copyToClipboard() {
+            const markdown = generateMarkdown();
+            navigator.clipboard.writeText(markdown).then(() => {
+                showSuccessMessage('✅ クリップボードにコピーしました！');
+            }).catch(() => {
+                alert('コピーに失敗しました。手動でコピーしてください。');
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('specForm').reset();
+            document.getElementById('preview').style.display = 'none';
+            document.getElementById('successMessage').classList.remove('show');
+        }
+
+        function showSuccessMessage(message) {
+            const successMessage = document.getElementById('successMessage');
+            successMessage.textContent = message;
+            successMessage.classList.add('show');
+            setTimeout(() => {
+                successMessage.classList.remove('show');
+            }, 3000);
+        }
+
+        // 初期化
+        updatePreview();
+    </script>
+</body>
+</html>
