@@ -11,7 +11,7 @@
 
 ## ホームページ
 
-[https://keisaurem.github.io/AiGameModdingLab/](https://keisaurem.github.io/AiGameModdingLab/)
+[https://aigamelabworkshop.github.io/AiGameModdingLab-20260805-team1/]([https://keisaurem.github.io/AiGameModdingLab/](https://aigamelabworkshop.github.io/AiGameModdingLab-20260805-team1/))
 
 ## ワークショップの流れ
 1. アイデア出し（付箋に手書きでOK）。短い一文で何を変えたいかを書きます。
