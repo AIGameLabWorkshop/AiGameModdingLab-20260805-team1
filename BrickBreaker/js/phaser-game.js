@@ -617,7 +617,10 @@
       this.extraBallSpawned = false;
       if (this.extraBall) {
         // 破棄済みボールを後続のリセット・発射処理で参照しないよう管理対象から外す。
-        this.balls = this.balls.filter((ball) => ball !== this.extraBall);
+        const extraBallIndex = this.balls.indexOf(this.extraBall);
+        if (extraBallIndex >= 0) {
+          this.balls.splice(extraBallIndex, 1);
+        }
         this.extraBall.destroy();
         this.extraBall = null;
       }
@@ -1117,6 +1120,31 @@
     }
 
     /*
+      画面下へ落ちたボールを処理します。
+      ステージ3でボールが複数ある間は落下個体だけを除去し、ライフは減らしません。
+    */
+    handleBallFallen(ball) {
+      if (this.stageIndex === 2 && this.balls.length > 1) {
+        const ballIndex = this.balls.indexOf(ball);
+        if (ballIndex >= 0) {
+          // collider が参照している配列を維持するため、同じ配列から要素だけを除く。
+          this.balls.splice(ballIndex, 1);
+        }
+
+        if (ball === this.extraBall) {
+          this.extraBall = null;
+        }
+
+        ball.destroy();
+        RENDERER.syncActorDecorations(this, CONFIG);
+        this.lastBallY = this.balls[0].y;
+        return;
+      }
+
+      this.handleLifeLost();
+    }
+
+    /*
       現在が ready 状態かどうかを返す関数です。
       文字列を直接比較する処理を外へ隠すことで、
       呼び出し側は「何を知りたいか」だけを読めるようになります。
@@ -1360,10 +1388,10 @@
 
       if (this.isPlayingPhase()) {
         // 全ボールの画面下への落下判定
-        this.balls.forEach((ball) => {
+        this.balls.slice().forEach((ball) => {
           if (ball.y - CONFIG.ballRadius > CONFIG.height) {
-            // 画面下へ完全に落ちたらミスとして扱う。
-            this.handleLifeLost();
+            // 複数ボール時は落下個体を除去し、最後の1個だけをミスとして扱う。
+            this.handleBallFallen(ball);
           }
         });
       }
