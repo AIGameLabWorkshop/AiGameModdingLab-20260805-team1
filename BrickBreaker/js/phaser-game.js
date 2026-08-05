@@ -192,7 +192,7 @@
 
       // ゲームオブジェクト
       this.paddle = null;
-      this.balls = []; // ボール100個の配列
+      this.balls = []; // 通常ボールと追加ボールを管理する配列
       this.bricks = null;
 
       // 描画演出用オブジェクト（物理判定は持たない）
@@ -491,41 +491,31 @@
       // パドル下に発光レイヤーを重ねる。
       this.paddleGlow = RENDERER.createPaddleGlow(this, CONFIG, this.paddle);
 
-      // ボール100個を配置する。
-      // 初期位置はパドル周辺の領域内にランダムに配置。
+      // spec_10: ゲーム開始時の通常ボールは1個だけ配置する。
+      // 初期位置は発射前に待機するパドル中央上。
       const ballStartX = CONFIG.width / 2;
       const ballStartY = CONFIG.paddleY - CONFIG.ballRadius - TUNING.ballRestOffsetY;
-      const ballSpreadRangeX = 80; // X方向の配置範囲
-      const ballSpreadRangeY = 40; // Y方向の配置範囲
 
-      for (let i = 0; i < 100; i++) {
-        // 各ボールの初期位置をランダムにずらす
-        const offsetX = (Math.random() - 0.5) * ballSpreadRangeX;
-        const offsetY = (Math.random() - 0.5) * ballSpreadRangeY;
-        const x = Phaser.Math.Clamp(ballStartX + offsetX, CONFIG.ballRadius, CONFIG.width - CONFIG.ballRadius);
-        const y = Phaser.Math.Clamp(ballStartY + offsetY, CONFIG.ballRadius, CONFIG.height - CONFIG.ballRadius);
+      // ボールを円として作る。
+      const ball = this.add.circle(
+        ballStartX,
+        ballStartY,
+        CONFIG.ballRadius,
+        CONFIG.colors.ball
+      );
+      // false を渡すと dynamic body（速度で動く体）になる。
+      this.physics.add.existing(ball, false);
+      // 重力はこのゲームでは使わない。
+      ball.body.setAllowGravity(false);
+      // 画面端に当たる判定を有効化。
+      ball.body.setCollideWorldBounds(true);
+      // 反射係数1 = 速度をほぼそのまま反転させる。
+      ball.body.setBounce(1, 1);
 
-        // ボールを円として作る
-        const ball = this.add.circle(
-          x,
-          y,
-          CONFIG.ballRadius,
-          CONFIG.colors.ball
-        );
-        // false を渡すと dynamic body（速度で動く体）になる。
-        this.physics.add.existing(ball, false);
-        // 重力はこのゲームでは使わない。
-        ball.body.setAllowGravity(false);
-        // 画面端に当たる判定を有効化。
-        ball.body.setCollideWorldBounds(true);
-        // 反射係数1 = 速度をほぼそのまま反転させる。
-        ball.body.setBounce(1, 1);
+      // 複数ボール対応の配列へ、開始時の1個を追加する。
+      this.balls.push(ball);
 
-        // 配列へ追加
-        this.balls.push(ball);
-      }
-
-      // 最初のボールにだけエフェクト付与（100個全てだと負荷が高い）
+      // 通常ボールにエフェクトを付与する。
       if (this.balls.length > 0) {
         const ballEffects = RENDERER.createBallEffects(this, CONFIG, this.balls[0]);
         this.ballGlow = ballEffects.ballGlow;
@@ -607,6 +597,8 @@
       // ステージ3 追加ボール管理をリセット（spec_07対応）
       this.extraBallSpawned = false;
       if (this.extraBall) {
+        // 破棄済みボールを後続のリセット・発射処理で参照しないよう管理対象から外す。
+        this.balls = this.balls.filter((ball) => ball !== this.extraBall);
         this.extraBall.destroy();
         this.extraBall = null;
       }
@@ -1054,7 +1046,12 @@
 
       if (this.lives <= 0) {
         this.phase = PHASE.OVER;
-        this.ball.body.setVelocity(0, 0);
+        // ゲームオーバー後も物理演算で動き続けないよう、有効な全ボールを停止する。
+        this.balls.forEach((ball) => {
+          if (ball.active && ball.body) {
+            ball.body.setVelocity(0, 0);
+          }
+        });
         sfx.play("gameOver");
         showOverlay(UI_TEXT.gameOver);
         // Gemini の号泣顔を表示する。

@@ -29,6 +29,24 @@
   }
 
   /*
+    パーティクル共通の白い円形テクスチャを用意します。
+    色は各エミッターの tint で変えるため、テクスチャ自体は白で作成します。
+  */
+  function ensureParticleTexture(scene) {
+    const textureKey = "bb:particle";
+    if (!scene.textures.exists(textureKey)) {
+      const texture = scene.textures.createCanvas(textureKey, 8, 8);
+      const ctx = texture.getContext();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(4, 4, 4, 0, Math.PI * 2);
+      ctx.fill();
+      texture.refresh();
+    }
+    return textureKey;
+  }
+
+  /*
     数値カラーを RGB 成分へ分解する関数です。
     明度調整（shiftColor）の前処理として使います。
   */
@@ -439,17 +457,17 @@
     破壊位置を中心に、小さなパーティクルが放射状に飛び散ります。
   */
   function createBrickExplosion(scene, x, y) {
-    // 爆発のパーティクルエミッターを作成
-    const emitter = scene.add.particles(0x0000ff).createEmitter({
-      // 発生位置
-      x: x,
-      y: y,
+    const particleTexture = ensureParticleTexture(scene);
+    // Phaser 3.90 では particles の生成時に設定を渡し、戻り値を直接操作する。
+    const emitter = scene.add.particles(x, y, particleTexture, {
       // スピード：100-200 px/s でランダム
-      speed: {min: 100, max: 200},
+      speed: {min: 120, max: 220},
       // 角度：360度全方向
       angle: {min: 0, max: 360},
       // スケール：小さな粒（最初 0.5-1.0、終了時 0.1）
-      scale: {start: 0.5, end: 0.1},
+      scale: {start: 0.6, end: 0.1},
+      // パーティクルの色をオレンジ～黄色系に設定
+      tint: [0xff8c00, 0xffa500, 0xffd700],
       // ライフスパン：400-600ms
       lifespan: {min: 400, max: 600},
       // 発生量：一度に 8-12 個放射
@@ -460,17 +478,12 @@
       }
     });
 
-    // パーティクルの色をオレンジ～黄色系に設定
-    emitter.setSpeed({min: 120, max: 220});
-    emitter.setScale({start: 0.6, end: 0.1});
-    emitter.setTint([0xff8c00, 0xffa500, 0xffd700]);
-
     // 一度だけ放射してから自動で破棄
     emitter.explode(10);
 
     // 短時間後にエミッター自体を破棄
     scene.time.delayedCall(1000, () => {
-      emitter.manager.destroy();
+      emitter.destroy();
     });
   }
 
@@ -613,44 +626,52 @@
       ease: "Sine.easeInOut"
     });
 
+    const particleTexture = ensureParticleTexture(scene);
+
     // 涙のパーティクルエミッター（左目から落ちる）
-    const leftTearEmitter = scene.add.particles(0xffffff).createEmitter({
-      x: config.width / 2 - 50,
-      y: config.height / 2 - 80,
+    const leftTearEmitter = scene.add.particles(
+      config.width / 2 - 50,
+      config.height / 2 - 80,
+      particleTexture,
+      {
       speedY: { min: 40, max: 80 },
       speedX: { min: -10, max: 10 },
       lifespan: 2000,
       gravityY: 100,
       frequency: 150,
       quantity: 1,
+      tint: 0x64C8FF,
+      alpha: { start: 0.8, end: 0 },
+      scale: { start: 0.4, end: 0 },
       emitZone: {
         type: "circle",
         source: new Phaser.Geom.Circle(0, 0, 8)
       }
-    });
-    leftTearEmitter.setTint(0x64C8FF);
-    leftTearEmitter.setAlpha({ start: 0.8, end: 0 });
-    leftTearEmitter.setScale({ start: 0.4, end: 0 });
+      }
+    );
     leftTearEmitter.setDepth(101);
 
     // 涙のパーティクルエミッター（右目から落ちる）
-    const rightTearEmitter = scene.add.particles(0xffffff).createEmitter({
-      x: config.width / 2 + 50,
-      y: config.height / 2 - 80,
+    const rightTearEmitter = scene.add.particles(
+      config.width / 2 + 50,
+      config.height / 2 - 80,
+      particleTexture,
+      {
       speedY: { min: 40, max: 80 },
       speedX: { min: -10, max: 10 },
       lifespan: 2000,
       gravityY: 100,
       frequency: 150,
       quantity: 1,
+      tint: 0x64C8FF,
+      alpha: { start: 0.8, end: 0 },
+      scale: { start: 0.4, end: 0 },
       emitZone: {
         type: "circle",
         source: new Phaser.Geom.Circle(0, 0, 8)
       }
-    });
-    rightTearEmitter.setTint(0x64C8FF);
-    rightTearEmitter.setAlpha({ start: 0.8, end: 0 });
-    rightTearEmitter.setScale({ start: 0.4, end: 0 });
+      }
+    );
     rightTearEmitter.setDepth(101);
 
     // Scene に参照を保持（クリーンアップ用）
@@ -672,8 +693,8 @@
 
     if (scene.tearEmitters && Array.isArray(scene.tearEmitters)) {
       scene.tearEmitters.forEach((emitter) => {
-        if (emitter && emitter.manager) {
-          emitter.manager.destroy();
+        if (emitter && emitter.active) {
+          emitter.destroy();
         }
       });
       scene.tearEmitters = [];
