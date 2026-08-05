@@ -256,6 +256,7 @@
 
       this.cursors = this.input.keyboard.createCursorKeys();
       this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      this.input.keyboard.on("keydown", this.handleCheatKey, this);
       this.registerPointerControls();
       RENDERER.initSceneVisualState(this);
       RENDERER.createBackgroundLayer(this, CONFIG);
@@ -264,6 +265,18 @@
       this.buildWorldObjects();
       this.resetWholeGame();
       this.registerEquipmentControls();
+    }
+
+    /*
+      チート用のキー入力を処理します。
+      event.key を使うことで、Shift+2 や日本語配列の @ キーを同じ文字として扱います。
+    */
+    handleCheatKey(event) {
+      if (event.key !== "@" || event.repeat) {
+        return;
+      }
+
+      this.destroyAllBricksWithCheat();
     }
 
     /*
@@ -961,6 +974,29 @@
         this.spawnBoss();
         // クリア処理の前にボスを出現させるので、クリアは保留（ボスを倒したときにクリア）
       }
+    }
+
+    /*
+      チート操作で現在ステージのブロックをすべて破壊します。
+      通常の全破壊時と同じく、破壊後はボス戦へ進みます。
+    */
+    destroyAllBricksWithCheat() {
+      if (!this.isPlayingPhase() || !this.bricks || this.remainingBricks <= 0) {
+        return;
+      }
+
+      // destroy で Group の配列が変化するため、コピーした一覧を走査する。
+      this.bricks.children.entries.slice().forEach((brick) => {
+        RENDERER.destroyBrickDecorations(brick);
+        brick.destroy();
+      });
+
+      this.remainingBricks = 0;
+      this.remainingMovingBricks = 0;
+      this.shouldPassThroughNextBrick = false;
+      this.passThroughBlockRef = null;
+      sfx.play("stageClear");
+      this.spawnBoss();
     }
 
     /*

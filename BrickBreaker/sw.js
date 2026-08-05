@@ -3,7 +3,7 @@
   初回アクセス時に主要ファイルを保存し、以降は "キャッシュ優先 + ネットワーク更新" で配信します。
 */
 
-const CACHE_NAME = "brickbreaker-cache-v2";
+const CACHE_NAME = "brickbreaker-cache-v3";
 const PRECACHE_URLS = [
   "./",
   "./index.html",
