@@ -207,6 +207,7 @@
       // 敵・ボス管理
       this.enemies = [];             // 敵の配列
       this.boss = null;              // ボスの参照（1体のみ）
+      this.bossCollider = null;      // ボス出現中だけ有効にする衝突判定
       this.bossHp = 0;               // ボスのHP
       this.hasSpawnedEnemy = false;  // このステージで敵が出たか
 
@@ -395,6 +396,10 @@
       const overlayTextEl = document.getElementById("overlayText");
       const equipmentPanel = document.getElementById("equipmentPanel");
 
+      // 装備ボタンの pointerdown が親オーバーレイへ伝わっても、
+      // 選択完了前にボールが発射されないよう開始入力を止める。
+      this.isSelectingEquipment = true;
+
       if (overlayTextEl) {
         overlayTextEl.textContent = UI_TEXT.equipmentSelect;
       }
@@ -443,6 +448,9 @@
       if (overlayTextEl) {
         overlayTextEl.textContent = UI_TEXT.start;
       }
+
+      // 装備の適用が完了したので、次の入力からゲームを開始できるようにする。
+      this.isSelectingEquipment = false;
     }
 
     /*
@@ -534,7 +542,6 @@
       this.physics.add.collider(this.balls, this.paddle, this.onBallHitPaddle, null, this);
       this.physics.add.collider(this.balls, this.bricks, this.onBallHitBrick, null, this);
       this.physics.add.collider(this.balls, this.enemies, this.onBallHitEnemy, null, this);
-      this.physics.add.collider(this.balls, this.boss, this.onBallHitBoss, null, this);
     }
 
     /*
@@ -572,6 +579,10 @@
       this.bricks.clear(true, true);
       // 敵・ボスもリセット
       this.destroyAllEnemies();
+      if (this.bossCollider) {
+        this.bossCollider.destroy();
+        this.bossCollider = null;
+      }
       if (this.boss) {
         // ボスの描画要素（目、口、舌）を破棄
         const leftEye = this.boss.getData("leftEye");
@@ -584,6 +595,10 @@
         if (mouth) mouth.destroy();
         if (tongue) tongue.destroy();
         
+        if (this.bossCollider) {
+          this.bossCollider.destroy();
+          this.bossCollider = null;
+        }
         this.boss.destroy();
         this.boss = null;
       }
@@ -715,6 +730,11 @@
       - それ以外は発射処理へ
     */
     activateGame() {
+      if (this.isSelectingEquipment) {
+        // 装備ボタンの選択操作はゲーム開始として扱わない。
+        return;
+      }
+
       if (this.isPlayingPhase()) {
         // プレイ中に開始操作されても無視する。
         return;
@@ -1125,6 +1145,8 @@
       this.boss = boss;
       // 最終ボスはHP=10、通常ボスはHP=5
       this.bossHp = isFinalBoss ? 10 : 5;
+      // ボスが存在する期間だけ、ボールとの衝突判定を有効にする。
+      this.bossCollider = this.physics.add.collider(this.balls, boss, this.onBallHitBoss, null, this);
     }
 
     /*
