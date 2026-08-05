@@ -407,21 +407,17 @@
       オーバーレイにメッセージと装備選択ボタンを表示します。
     */
     showEquipmentSelection() {
-      const overlayTextEl = document.getElementById("overlayText");
       const equipmentPanel = document.getElementById("equipmentPanel");
 
       // 装備ボタンの pointerdown が親オーバーレイへ伝わっても、
       // 選択完了前にボールが発射されないよう開始入力を止める。
       this.isSelectingEquipment = true;
 
-      if (overlayTextEl) {
-        overlayTextEl.textContent = UI_TEXT.equipmentSelect;
-      }
-
       if (equipmentPanel) {
         equipmentPanel.classList.remove("hidden");
       }
 
+      // パネル内に選択見出しがあるため、オーバーレイ本文は空にして重複表示を避ける。
       showOverlay("");
     }
 
@@ -755,8 +751,9 @@
       }
 
       if (this.phase === PHASE.OVER || this.phase === PHASE.WIN) {
-        // ゲーム終了後の開始操作は「最初からやり直し」にする。
+        // リセット後は装備選択で待機し、同じ入力ではボールを発射しない。
         this.resetWholeGame();
+        return;
       }
 
       this.launchBall();
