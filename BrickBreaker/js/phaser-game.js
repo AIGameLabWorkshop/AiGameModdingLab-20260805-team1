@@ -186,6 +186,7 @@
       this.phase = PHASE.READY;
       this.stageIndex = 0;
       this.score = 0;
+      this.defaultInitialLives = CONFIG.initialLives;
       this.lives = CONFIG.initialLives;
       this.remainingBricks = 0;
       this.remainingMovingBricks = 0;
@@ -421,8 +422,13 @@
         return;
       }
 
+      const initialLivesBeforeEquipment = CONFIG.initialLives;
       // 装備の apply 関数を実行して、CONFIG を更新する。
       equipment.apply(CONFIG, SHARED_CONSTANTS);
+
+      // 初期ライフを変える装備は、構築済みの現在ライフと HUD にも差分を反映する。
+      this.lives += CONFIG.initialLives - initialLivesBeforeEquipment;
+      this.updateHud();
 
       // パドル幅が変わっていれば、ゲームに反映させる。
       // （最初のステージを既に buildStage 済みなので、ここで直接更新）
@@ -752,6 +758,8 @@
       this.phase = PHASE.READY;
       this.stageIndex = 0;
       this.score = 0;
+      // 前回選んだディフェンス装備が次のゲームへ累積しないよう基準値へ戻す。
+      CONFIG.initialLives = this.defaultInitialLives;
       this.lives = CONFIG.initialLives;
       // 装備システム用：パドル幅を初期値にリセット（ゲーム開始時のリトライで装備が残らないようにする）
       CONFIG.paddleWidth = TUNING.defaultPaddleWidth;
