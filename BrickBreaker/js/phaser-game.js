@@ -995,6 +995,13 @@
         return;
       }
 
+      // ボス側面への衝突で縦速度が失われても、水平往復に固定されないよう補正する。
+      const minimumVerticalSpeed = Math.max(80, this.activeDifficulty.ballSpeed * 0.4);
+      if (Math.abs(ball.body.velocity.y) < minimumVerticalSpeed) {
+        const verticalDirection = ball.y < boss.y ? -1 : 1;
+        ball.body.setVelocityY(minimumVerticalSpeed * verticalDirection);
+      }
+
       sfx.play("brickHit");
       this.bossHp -= 1;
       
@@ -1139,6 +1146,9 @@
       boss.body.setAllowGravity(false);
       boss.body.setCollideWorldBounds(true);
       boss.body.setBounce(1, 1);
+      // ボールの勢いを吸収しない、手動移動する壁として衝突させる。
+      boss.body.setImmovable(true);
+      boss.body.moves = false;
       boss.setData("spawnTime", this.time.now);
       
       // ボスの種別フラグをセット（描画時に使用）
@@ -1201,6 +1211,8 @@
         const frequency = 0.5;
         this.boss.x = baseX + Math.sin(elapsed * frequency * Math.PI * 2) * amplitude;
         this.boss.x = Phaser.Math.Clamp(this.boss.x, 40, CONFIG.width - 40);
+        // body.moves=false のため、手動変更した見た目の位置へ当たり判定も同期する。
+        this.boss.body.updateFromGameObject();
       }
     }
 

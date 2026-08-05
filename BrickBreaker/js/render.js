@@ -529,6 +529,29 @@
     if (scene.ballSpecular && scene.balls && scene.balls.length > 0) {
       scene.ballSpecular.setPosition(scene.balls[0].x - 2, scene.balls[0].y - 2);
     }
+
+    if (scene.boss && scene.boss.active) {
+      const isFinalBoss = scene.boss.getData("isFinalBoss");
+      const radius = isFinalBoss ? 50 : 30;
+      const eyeDistance = isFinalBoss ? 25 : 15;
+      const leftEye = scene.boss.getData("leftEye");
+      const rightEye = scene.boss.getData("rightEye");
+      const mouth = scene.boss.getData("mouth");
+      const tongue = scene.boss.getData("tongue");
+
+      if (leftEye) {
+        leftEye.setPosition(scene.boss.x - eyeDistance, scene.boss.y - radius / 4);
+      }
+      if (rightEye) {
+        rightEye.setPosition(scene.boss.x + eyeDistance, scene.boss.y - radius / 4);
+      }
+      if (mouth) {
+        mouth.setPosition(scene.boss.x, scene.boss.y);
+      }
+      if (tongue) {
+        tongue.setPosition(scene.boss.x, scene.boss.y);
+      }
+    }
   }
 
   /*
@@ -784,10 +807,11 @@
 
     if (isFinalBoss) {
       // 最終ボス：舌付き顔を描く
-      // 口（下向き弧線）
+      // Graphics 内はボス中心からの相対座標で描き、本体位置へ追従させる。
       const mouth = scene.add.graphics();
       mouth.lineStyle(4, 0x000000);
-      mouth.arc(boss.x, boss.y + 10, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.arc(0, 10, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.setPosition(boss.x, boss.y);
       mouth.setDepth(8);
       boss.setData("mouth", mouth);
       
@@ -795,8 +819,9 @@
       const tongue = scene.add.graphics();
       tongue.fillStyle(0xff0000, 1);  // 赤色
       // 舌を描く：ボスの下部からぶら下がる形状
-      tongue.fillRect(boss.x - 6, boss.y + radius / 2, 12, 20);
-      tongue.fillCircle(boss.x, boss.y + radius / 2 + 20, 8);
+      tongue.fillRect(-6, radius / 2, 12, 20);
+      tongue.fillCircle(0, radius / 2 + 20, 8);
+      tongue.setPosition(boss.x, boss.y);
       tongue.setDepth(8);
       boss.setData("tongue", tongue);
     } else {
@@ -804,7 +829,8 @@
       // 口（弧線を Graphics で描画）
       const mouth = scene.add.graphics();
       mouth.lineStyle(3, 0x000000);
-      mouth.arc(boss.x, boss.y + 12, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.arc(0, 12, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.setPosition(boss.x, boss.y);
       mouth.setDepth(8);
       boss.setData("mouth", mouth);
     }
