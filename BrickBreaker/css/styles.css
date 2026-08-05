@@ -472,3 +472,89 @@ button:hover {
     width: 100%;
   }
 }
+
+/*
+  装備選択パネルのスタイルです。
+  ゲーム開始前のオーバーレイ内に表示されます。
+*/
+.equipment-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.equipment-panel.hidden {
+  display: none;
+}
+
+.equipment-title {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/*
+  装備ボタンのグループレイアウトです。
+  縦並びで3つのボタンを配置します。
+*/
+.equipment-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/*
+  個別の装備ボタンのスタイルです。
+  アイコン・名前・説明を縦方向に並べています。
+*/
+.equipment-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(116, 247, 255, 0.18), rgba(255, 209, 102, 0.12) 100%);
+  border: 1px solid rgba(116, 247, 255, 0.3);
+  border-radius: 14px;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  /* ボタン内の要素を中央揃えにします。 */
+  text-align: center;
+}
+
+.equipment-btn:hover {
+  background: linear-gradient(135deg, rgba(116, 247, 255, 0.24), rgba(255, 209, 102, 0.18) 100%);
+  border-color: rgba(116, 247, 255, 0.5);
+  box-shadow: 0 8px 16px rgba(116, 247, 255, 0.18);
+}
+
+.equipment-btn:active {
+  transform: scale(0.96);
+}
+
+.equipment-icon {
+  display: block;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.equipment-name {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.equipment-desc {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 400;
+}

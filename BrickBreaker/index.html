@@ -73,6 +73,27 @@
             <div class="overlay-card">
               <h1>BrickBreaker</h1>
               <p id="overlayText" aria-live="assertive">タップしてスタート</p>
+              <!-- 装備選択ボタングループ（ゲーム初期化時に表示/非表示を切り替える） -->
+              <div id="equipmentPanel" class="equipment-panel hidden">
+                <p class="equipment-title">装備を選んで、強化しよう！</p>
+                <div class="equipment-buttons">
+                  <button id="equipmentA" class="equipment-btn" type="button">
+                    <span class="equipment-icon">📏</span>
+                    <span class="equipment-name">サイズアップ</span>
+                    <span class="equipment-desc">パドルが大きくなる</span>
+                  </button>
+                  <button id="equipmentB" class="equipment-btn" type="button">
+                    <span class="equipment-icon">⚡</span>
+                    <span class="equipment-name">スピードアップ</span>
+                    <span class="equipment-desc">ボールが速くなる</span>
+                  </button>
+                  <button id="equipmentC" class="equipment-btn" type="button">
+                    <span class="equipment-icon">🛡️</span>
+                    <span class="equipment-name">ディフェンス</span>
+                    <span class="equipment-desc">ライフが1増える</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

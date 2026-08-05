@@ -15,6 +15,8 @@ window.BB = window.BB || {};
 
     // 最初に持っているライフ数。
     initialLives: 3,
+    // パドルの幅（装備システムで調整される）。
+    paddleWidth: 80,
     // パドルの高さ。
     paddleHeight: 7,
     // パドルの縦位置（画面下に固定するためのY座標）。
@@ -39,6 +41,24 @@ window.BB = window.BB || {};
         // Bブロックの耐久。
         hitPoints: 1,
         // Bブロックを壊したときの得点。
+        score: 10
+      },
+      M: {
+        // Mブロック（移動ブロック）の色。
+        color: "0xffa500",
+        // Mブロック（移動ブロック）の耐久。
+        hitPoints: 1,
+        // Mブロック（移動ブロック）を壊したときの得点。
+        score: 10,
+        // Mブロック（移動ブロック）は水平に移動する（レベル2以上）。
+        moving: true
+      },
+      W: {
+        // Wブロック（壁）の色。
+        color: "0x8b4513",
+        // Wブロック（壁）の耐久。
+        hitPoints: 1,
+        // Wブロック（壁）を壊したときの得点。
         score: 10
       }
     },
@@ -176,6 +196,40 @@ window.BB = window.BB || {};
         stageClear: { type: "sine", frequency: 523.25, endFrequency: 880, duration: 0.12, volume: 0.7 },
         // 全クリア時の長めの上昇音。
         win: { type: "sine", frequency: 523.25, endFrequency: 1174.66, duration: 0.22, volume: 0.85 }
+      }
+    },
+
+    // 装備システムの定義。
+    // ゲーム開始前にプレイヤーが選択できる装備の種類と効果。
+    equipment: {
+      // 装備A: サイズアップ（パドル幅が1.5倍になる）
+      A: {
+        name: "サイズアップ",
+        icon: "📏",
+        description: "パドルが大きくなる",
+        apply: function (config) {
+          config.paddleWidth = Math.round(config.paddleWidth * 1.5);
+        }
+      },
+      // 装備B: スピードアップ（ボール速度が1.2倍になる）
+      B: {
+        name: "スピードアップ",
+        icon: "⚡",
+        description: "ボールが速くなる",
+        apply: function (config, constants) {
+          if (constants && constants.TUNING) {
+            constants.TUNING.initialBallSpeed = Math.round((constants.TUNING.initialBallSpeed || 220) * 1.2);
+          }
+        }
+      },
+      // 装備C: ディフェンス（初期ライフ+1）
+      C: {
+        name: "ディフェンス",
+        icon: "🛡️",
+        description: "ライフが1増える",
+        apply: function (config) {
+          config.initialLives = config.initialLives + 1;
+        }
       }
     }
   };

@@ -168,7 +168,9 @@
           height: snappedHeight,
           color: normalizeColor(type.color),
           score: type.score || TUNING.defaultBrickScore,
-          hp: type.hitPoints || TUNING.defaultBrickHp
+          hp: type.hitPoints || TUNING.defaultBrickHp,
+          moving: type.moving || false,
+          type: typeKey
         });
       }
     }
@@ -186,10 +188,11 @@
       this.score = 0;
       this.lives = CONFIG.initialLives;
       this.remainingBricks = 0;
+      this.remainingMovingBricks = 0;
 
       // ゲームオブジェクト
       this.paddle = null;
-      this.ball = null;
+      this.balls = []; // ボール100個の配列
       this.bricks = null;
 
       // 描画演出用オブジェクト（物理判定は持たない）
@@ -200,6 +203,16 @@
       this.ballGlow = null;
       this.ballSpecular = null;
       this.brickDecorations = [];
+
+      // 敵・ボス管理
+      this.enemies = [];             // 敵の配列
+      this.boss = null;              // ボスの参照（1体のみ）
+      this.bossHp = 0;               // ボスのHP
+      this.hasSpawnedEnemy = false;  // このステージで敵が出たか
+
+      // ステージ3 追加ボール管理（spec_07対応）
+      this.extraBall = null;         // ステージ3の追加ボール参照
+      this.extraBallSpawned = false; // 追加ボール発動済みフラグ
 
       // 入力・難易度
       this.cursors = null;
@@ -214,6 +227,11 @@
 
       // パドル抜けフォールバック判定用
       this.lastBallY = 0;
+
+      // ボール通過ブロック管理（spec_09対応）
+      this.ballBlockHitCount = 0;           // このステージのボール衝突回数
+      this.shouldPassThroughNextBrick = false; // 次の衝突時に透明化するフラグ
+      this.passThroughBlockRef = null;      // 通過中のブロック参照
     }
 
     /*
@@ -243,6 +261,7 @@
       // 画面に必要な部品を作ってから、ゲーム状態を初期化する。
       this.buildWorldObjects();
       this.resetWholeGame();
+      this.registerEquipmentControls();
     }
 
     /*
@@ -339,6 +358,94 @@
     }
 
     /*
+      装備選択UI のイベント登録をまとめる関数です。
+      各装備ボタンがクリックされたときの処理を登録します。
+    */
+    registerEquipmentControls() {
+      const equipmentABtn = document.getElementById("equipmentA");
+      const equipmentBBtn = document.getElementById("equipmentB");
+      const equipmentCBtn = document.getElementById("equipmentC");
+
+      if (!equipmentABtn || !equipmentBBtn || !equipmentCBtn) {
+        return;
+      }
+
+      // 各装備ボタンのクリック時に装備を適用する。
+      equipmentABtn.addEventListener("click", () => {
+        sfx.unlock();
+        this.applyEquipment("A");
+      });
+
+      equipmentBBtn.addEventListener("click", () => {
+        sfx.unlock();
+        this.applyEquipment("B");
+      });
+
+      equipmentCBtn.addEventListener("click", () => {
+        sfx.unlock();
+        this.applyEquipment("C");
+      });
+    }
+
+    /*
+      装備選択パネルを表示する関数です。
+      オーバーレイにメッセージと装備選択ボタンを表示します。
+    */
+    showEquipmentSelection() {
+      const overlayTextEl = document.getElementById("overlayText");
+      const equipmentPanel = document.getElementById("equipmentPanel");
+
+      if (overlayTextEl) {
+        overlayTextEl.textContent = UI_TEXT.equipmentSelect;
+      }
+
+      if (equipmentPanel) {
+        equipmentPanel.classList.remove("hidden");
+      }
+
+      showOverlay("");
+    }
+
+    /*
+      装備を適用して、ゲーム開始画面へ遷移する関数です。
+      指定された装備の効果を CONFIG に反映させます。
+    */
+    applyEquipment(equipmentKey) {
+      const equipment = CONFIG.equipment && CONFIG.equipment[equipmentKey];
+      if (!equipment || !equipment.apply) {
+        return;
+      }
+
+      // 装備の apply 関数を実行して、CONFIG を更新する。
+      equipment.apply(CONFIG, SHARED_CONSTANTS);
+
+      // パドル幅が変わっていれば、ゲームに反映させる。
+      // （最初のステージを既に buildStage 済みなので、ここで直接更新）
+      const stage = this.getStage(this.stageIndex);
+      if (stage && stage.difficulty) {
+        this.paddle.width = CONFIG.paddleWidth;
+        this.paddle.body.setSize(CONFIG.paddleWidth, CONFIG.paddleHeight, true);
+        this.paddle.body.updateFromGameObject();
+
+        if (this.paddleVisual) {
+          this.paddleVisual.setTexture(RENDERER.getPaddleTextureKey(this, CONFIG, CONFIG.paddleWidth, CONFIG.colors.paddle));
+        }
+      }
+
+      // 装備選択パネルを非表示にする。
+      const equipmentPanel = document.getElementById("equipmentPanel");
+      if (equipmentPanel) {
+        equipmentPanel.classList.add("hidden");
+      }
+
+      // ゲーム開始メッセージを表示する。
+      const overlayTextEl = document.getElementById("overlayText");
+      if (overlayTextEl) {
+        overlayTextEl.textContent = UI_TEXT.start;
+      }
+    }
+
+    /*
       ステージ定義を取り出す小さなアクセサ関数です。
       CONFIG.stages[...] の直接参照を減らし、
       「ステージを使う」意図をコード上で明確にします。
@@ -376,35 +483,58 @@
       // パドル下に発光レイヤーを重ねる。
       this.paddleGlow = RENDERER.createPaddleGlow(this, CONFIG, this.paddle);
 
-      // ボールは円として作る。
-      this.ball = this.add.circle(
-        CONFIG.width / 2,
-        CONFIG.paddleY - CONFIG.ballRadius - TUNING.ballRestOffsetY,
-        CONFIG.ballRadius,
-        CONFIG.colors.ball
-      );
-      // false を渡すと dynamic body（速度で動く体）になる。
-      this.physics.add.existing(this.ball, false);
-      // 重力はこのゲームでは使わない。
-      this.ball.body.setAllowGravity(false);
-      // 画面端に当たる判定を有効化。
-      this.ball.body.setCollideWorldBounds(true);
-      // 反射係数1 = 速度をほぼそのまま反転させる。
-      this.ball.body.setBounce(1, 1);
+      // ボール100個を配置する。
+      // 初期位置はパドル周辺の領域内にランダムに配置。
+      const ballStartX = CONFIG.width / 2;
+      const ballStartY = CONFIG.paddleY - CONFIG.ballRadius - TUNING.ballRestOffsetY;
+      const ballSpreadRangeX = 80; // X方向の配置範囲
+      const ballSpreadRangeY = 40; // Y方向の配置範囲
 
-      // ボール周辺の発光と白いハイライト点。
-      const ballEffects = RENDERER.createBallEffects(this, CONFIG, this.ball);
-      this.ballGlow = ballEffects.ballGlow;
-      this.ballSpecular = ballEffects.ballSpecular;
+      for (let i = 0; i < 100; i++) {
+        // 各ボールの初期位置をランダムにずらす
+        const offsetX = (Math.random() - 0.5) * ballSpreadRangeX;
+        const offsetY = (Math.random() - 0.5) * ballSpreadRangeY;
+        const x = Phaser.Math.Clamp(ballStartX + offsetX, CONFIG.ballRadius, CONFIG.width - CONFIG.ballRadius);
+        const y = Phaser.Math.Clamp(ballStartY + offsetY, CONFIG.ballRadius, CONFIG.height - CONFIG.ballRadius);
+
+        // ボールを円として作る
+        const ball = this.add.circle(
+          x,
+          y,
+          CONFIG.ballRadius,
+          CONFIG.colors.ball
+        );
+        // false を渡すと dynamic body（速度で動く体）になる。
+        this.physics.add.existing(ball, false);
+        // 重力はこのゲームでは使わない。
+        ball.body.setAllowGravity(false);
+        // 画面端に当たる判定を有効化。
+        ball.body.setCollideWorldBounds(true);
+        // 反射係数1 = 速度をほぼそのまま反転させる。
+        ball.body.setBounce(1, 1);
+
+        // 配列へ追加
+        this.balls.push(ball);
+      }
+
+      // 最初のボールにだけエフェクト付与（100個全てだと負荷が高い）
+      if (this.balls.length > 0) {
+        const ballEffects = RENDERER.createBallEffects(this, CONFIG, this.balls[0]);
+        this.ballGlow = ballEffects.ballGlow;
+        this.ballSpecular = ballEffects.ballSpecular;
+      }
 
       RENDERER.syncActorDecorations(this, CONFIG);
 
       // ブロックはまとめて staticGroup で管理する。
       this.bricks = this.physics.add.staticGroup();
 
-      // ボールがパドル/ブロックに当たったときの処理を登録する。
-      this.physics.add.collider(this.ball, this.paddle, this.onBallHitPaddle, null, this);
-      this.physics.add.collider(this.ball, this.bricks, this.onBallHitBrick, null, this);
+      // ボールがパドル/ブロック/敵/ボスに当たったときの処理を登録する。
+      // Phaser の collider は配列全要素との判定を自動で行う。
+      this.physics.add.collider(this.balls, this.paddle, this.onBallHitPaddle, null, this);
+      this.physics.add.collider(this.balls, this.bricks, this.onBallHitBrick, null, this);
+      this.physics.add.collider(this.balls, this.enemies, this.onBallHitEnemy, null, this);
+      this.physics.add.collider(this.balls, this.boss, this.onBallHitBoss, null, this);
     }
 
     /*
@@ -440,6 +570,40 @@
       // 前のステージのブロックを全部消す。
       RENDERER.clearBrickDecorations(this);
       this.bricks.clear(true, true);
+      // 敵・ボスもリセット
+      this.destroyAllEnemies();
+      if (this.boss) {
+        // ボスの描画要素（目、口、舌）を破棄
+        const leftEye = this.boss.getData("leftEye");
+        const rightEye = this.boss.getData("rightEye");
+        const mouth = this.boss.getData("mouth");
+        const tongue = this.boss.getData("tongue");
+        
+        if (leftEye) leftEye.destroy();
+        if (rightEye) rightEye.destroy();
+        if (mouth) mouth.destroy();
+        if (tongue) tongue.destroy();
+        
+        this.boss.destroy();
+        this.boss = null;
+      }
+      this.hasSpawnedEnemy = false;
+      
+      // ステージ3 追加ボール管理をリセット（spec_07対応）
+      this.extraBallSpawned = false;
+      if (this.extraBall) {
+        this.extraBall.destroy();
+        this.extraBall = null;
+      }
+
+      // spec_09: ボール通過ブロック用の状態をリセット（新ステージごと）
+      this.ballBlockHitCount = 0;
+      this.shouldPassThroughNextBrick = false;
+      if (this.passThroughBlockRef) {
+        this.passThroughBlockRef.setAlpha(1);  // 残っていたら再表示
+        this.passThroughBlockRef = null;
+      }
+      
       const stage = this.getStage(stageIndex);
       this.applyStageDifficulty(stageIndex);
 
@@ -454,10 +618,40 @@
         // setData で「耐久」「点数」をブロック自身に持たせる。
         rect.setData("hp", brick.hp);
         rect.setData("score", brick.score);
+        // 移動フラグを持たせる。
+        rect.setData("moving", brick.moving);
+        // ブロック種別を記録（爆発エフェクト判定などで使用）。
+        rect.setData("type", brick.type);
+        // 移動ブロックのための初期位置を保存。
+        if (brick.moving) {
+          rect.setData("baseX", brick.x);
+        }
         this.bricks.add(rect);
       });
 
       this.remainingBricks = brickData.length;
+      // 移動ブロック数をカウント。
+      this.remainingMovingBricks = brickData.filter(b => b.moving).length;
+      
+      // ステージ3のための追加ボール準備（spec_07対応）
+      // 「途中から」＝ステージ3でブロック数50%破壊時に発動
+      if (stageIndex === 2) {
+        // パドル周辺にボールを1個作成して、配列に追加
+        const ballStartX = CONFIG.width / 2;
+        const ballStartY = CONFIG.paddleY - CONFIG.ballRadius - TUNING.ballRestOffsetY;
+        const offsetX = (Math.random() - 0.5) * 60;
+        const x = Phaser.Math.Clamp(ballStartX + offsetX, CONFIG.ballRadius, CONFIG.width - CONFIG.ballRadius);
+        const y = Phaser.Math.Clamp(ballStartY, CONFIG.ballRadius, CONFIG.height - CONFIG.ballRadius);
+        
+        this.extraBall = this.add.circle(x, y, CONFIG.ballRadius, CONFIG.colors.ball);
+        this.physics.add.existing(this.extraBall, false);
+        this.extraBall.body.setAllowGravity(false);
+        this.extraBall.body.setCollideWorldBounds(true);
+        this.extraBall.body.setBounce(1, 1);
+        // 追加ボール配列に登録
+        this.balls.push(this.extraBall);
+      }
+      
       this.updateStageHud();
       this.resetBallToPaddle();
     }
@@ -468,10 +662,15 @@
       「発射前はボールがパドルに乗っている」見た目を保ちます。
     */
     resetBallToPaddle() {
-      this.ball.setPosition(this.paddle.x, this.paddle.y - CONFIG.ballRadius - TUNING.ballRestOffsetY);
-      this.ball.body.setVelocity(0, 0);
+      // 全ボールをパドル上に戻す
+      this.balls.forEach((ball) => {
+        ball.setPosition(this.paddle.x, this.paddle.y - CONFIG.ballRadius - TUNING.ballRestOffsetY);
+        ball.body.setVelocity(0, 0);
+      });
       RENDERER.syncActorDecorations(this, CONFIG);
-      this.lastBallY = this.ball.y;
+      if (this.balls.length > 0) {
+        this.lastBallY = this.balls[0].y;
+      }
     }
 
     /*
@@ -485,16 +684,23 @@
         return;
       }
 
-      // 左右どちらに飛ぶかはランダムで決める。
-      const horizontal = Math.random() < 0.5 ? -1 : 1;
-      this.ball.body.setVelocity(
-        this.activeDifficulty.ballSpeed * horizontal,
-        -this.activeDifficulty.ballSpeed
-      );
+      // 全ボールを発射する（各ボールは独立した方向・速度）
+      this.balls.forEach((ball) => {
+        // 左右どちらに飛ぶかはランダムで決める
+        const horizontal = Math.random() < 0.5 ? -1 : 1;
+        // 上下の速度も少しランダムに変動させて、ばらつきを持たせる
+        const verticalVariation = 0.8 + Math.random() * 0.4; // 0.8～1.2倍
+        ball.body.setVelocity(
+          this.activeDifficulty.ballSpeed * horizontal,
+          -this.activeDifficulty.ballSpeed * verticalVariation
+        );
+      });
       this.phase = PHASE.PLAYING;
       RENDERER.syncActorDecorations(this, CONFIG);
       sfx.play("start");
-      this.lastBallY = this.ball.y;
+      if (this.balls.length > 0) {
+        this.lastBallY = this.balls[0].y;
+      }
       hideOverlay();
     }
 
@@ -525,18 +731,26 @@
     /*
       ゲーム全体を初期状態へ戻す関数です。
       ステージ番号・スコア・ライフを初期値に戻し、
-      ステージ1を構築したうえで開始メッセージを表示します。
+      ステージ1を構築したうえで装備選択画面を表示します。
     */
     resetWholeGame() {
+      // ゲームオーバー画面の Gemini 顔をクリーンアップする。
+      RENDERER.destroyGeminiGameOverFace(this);
       // 進行情報を初期値に戻す。
       this.phase = PHASE.READY;
       this.stageIndex = 0;
       this.score = 0;
       this.lives = CONFIG.initialLives;
+      // 装備システム用：パドル幅を初期値にリセット（ゲーム開始時のリトライで装備が残らないようにする）
+      CONFIG.paddleWidth = TUNING.defaultPaddleWidth;
       this.paddle.setPosition(CONFIG.width / 2, CONFIG.paddleY);
+      // spec_09: ボール通過ブロック用の状態をリセット
+      this.ballBlockHitCount = 0;
+      this.shouldPassThroughNextBrick = false;
+      this.passThroughBlockRef = null;
       this.buildStage(this.stageIndex);
       this.updateHud();
-      showOverlay(UI_TEXT.start);
+      this.showEquipmentSelection();
     }
 
     /*
@@ -612,10 +826,57 @@
       - HP を減らす
       - 0 以下なら破壊して得点加算
       - 残りブロック0ならステージクリア処理へ
+      - spec_09対応：5の倍数回衝突時に通過ブロックギミック発動
     */
     onBallHitBrick(ball, brick) {
       if (!this.isPlayingPhase()) {
         return;
+      }
+
+      // spec_09: ボール通過ブロック - 衝突回数をカウント
+      this.ballBlockHitCount += 1;
+      console.log("ボール衝突回数: " + this.ballBlockHitCount);
+
+      // spec_09: 5の倍数に達したら、次の衝突を透明化対象にマーク
+      if (this.ballBlockHitCount % 5 === 0) {
+        this.shouldPassThroughNextBrick = true;
+        console.log("5の倍数到達！次のブロック衝突を透明化します");
+      }
+
+      // spec_09: 通過中のブロックが再度衝突 → ステージクリア（全ブロック消え）
+      if (this.passThroughBlockRef === brick) {
+        console.log("再出現したブロックに再衝突！全ブロック消えてステージクリア");
+        // ステージのすべてのブロックを消す
+        this.bricks.children.entries.forEach((b) => {
+          this.remainingBricks -= 1;
+          if (b.getData("moving")) {
+            this.remainingMovingBricks -= 1;
+          }
+          RENDERER.destroyBrickDecorations(b);
+          b.destroy();
+        });
+        this.remainingBricks = 0;
+        this.passThroughBlockRef = null;
+        // ボス出現またはステージクリア
+        this.spawnBoss();
+        return;
+      }
+
+      // spec_09: 透明化対象ブロック → 通過モード（スコア/HP処理なし）
+      if (this.shouldPassThroughNextBrick && !this.passThroughBlockRef) {
+        this.shouldPassThroughNextBrick = false;
+        this.passThroughBlockRef = brick;
+        brick.setAlpha(0);  // ブロックを透明化
+        console.log("ブロックを透明化してボールを通します");
+        // 音声、HP、スコアは処理しない（通過するのみ）
+        return;
+      }
+
+      // spec_09: 通過中のブロック以外の衝突 → 透明ブロックを再表示
+      if (this.passThroughBlockRef && this.passThroughBlockRef !== brick) {
+        this.passThroughBlockRef.setAlpha(1);  // 再出現
+        console.log("別のブロック衝突のため透明ブロックを再表示");
+        this.passThroughBlockRef = null;
       }
 
       sfx.play("brickHit");
@@ -626,9 +887,48 @@
         this.score += brick.getData("score") || TUNING.defaultBrickScore;
         this.updateHud();
 
+        // 移動ブロックの場合は moving カウンターも減らす。
+        if (brick.getData("moving")) {
+          this.remainingMovingBricks -= 1;
+          // すべての移動ブロックが破壊されたら拍手音を再生。
+          if (this.remainingMovingBricks <= 0) {
+            sfx.play("clap");
+          }
+        }
+
+        // W ブロック（壁）の場合は爆発エフェクトを演出。
+        if (brick.getData("type") === "W") {
+          RENDERER.createBrickExplosion(this, brick.x, brick.y);
+        }
+
         RENDERER.destroyBrickDecorations(brick);
 
         brick.destroy();
+        
+        // 敵出現判定：最初のブロックが壊れたときに敵を1体出現
+        if (this.remainingBricks === this.getStage(this.stageIndex).blockLayout.flat().filter(cell => cell).length - 1) {
+          if (!this.hasSpawnedEnemy) {
+            this.spawnEnemy();
+          }
+        }
+
+        // ステージ3 追加ボール発動判定（spec_07対応）
+        // ブロック破壊が50%に到達したら、追加ボール1個を有効化して+20点
+        if (this.stageIndex === 2 && !this.extraBallSpawned) {
+          const totalBlocks = this.getStage(this.stageIndex).blockLayout.flat().filter(cell => cell).length;
+          const destroyedBlocks = totalBlocks - this.remainingBricks;
+          const destroyedPercent = destroyedBlocks / totalBlocks;
+          
+          if (destroyedPercent >= 0.5) {
+            // 追加ボールを有効化
+            this.extraBallSpawned = true;
+            // ステージ3用スコア加算
+            this.score += 20;
+            this.updateHud();
+            sfx.play("powerup");  // パワーアップ音（存在する場合）
+            console.log("ステージ3 追加ボール発動！スコア+20");
+          }
+        }
       } else {
         // まだ壊れない場合は耐久だけ減らす。
         brick.setData("hp", hp);
@@ -637,6 +937,65 @@
       }
 
       if (this.remainingBricks <= 0) {
+        // すべてのブロックが破壊されたときにボスを出現
+        this.spawnBoss();
+        // クリア処理の前にボスを出現させるので、クリアは保留（ボスを倒したときにクリア）
+      }
+    }
+
+    /*
+      敵をボールに当たったときの処理です。
+      敵は1回で消えます。
+    */
+    onBallHitEnemy(ball, enemy) {
+      if (!this.isPlayingPhase()) {
+        return;
+      }
+
+      sfx.play("brickHit");
+      this.score += 50;  // 敵を倒した得点
+      this.updateHud();
+
+      // 敵配列から削除
+      const index = this.enemies.indexOf(enemy);
+      if (index > -1) {
+        this.enemies.splice(index, 1);
+      }
+      enemy.destroy();
+    }
+
+    /*
+      ボスをボールに当たったときの処理です。
+      最終ステージのボスはHP=10で10回のボール衝突で消え、
+      通常ステージのボスはHP=5で5回のボール衝突で消えます。
+      ボスを倒すとステージクリアとなります。
+    */
+    onBallHitBoss(ball, boss) {
+      if (!this.isPlayingPhase()) {
+        return;
+      }
+
+      sfx.play("brickHit");
+      this.bossHp -= 1;
+      
+      if (this.bossHp <= 0) {
+        // ボスが倒れたら得点を加算してステージクリア処理へ
+        this.score += 100;  // ボス撃破のボーナス点
+        this.updateHud();
+        
+        // ボスの描画要素（目、口、舌）を破棄
+        const leftEye = this.boss.getData("leftEye");
+        const rightEye = this.boss.getData("rightEye");
+        const mouth = this.boss.getData("mouth");
+        const tongue = this.boss.getData("tongue");
+        
+        if (leftEye) leftEye.destroy();
+        if (rightEye) rightEye.destroy();
+        if (mouth) mouth.destroy();
+        if (tongue) tongue.destroy();
+        
+        this.boss.destroy();
+        this.boss = null;
         this.handleStageClear();
       }
     }
@@ -678,6 +1037,8 @@
         this.ball.body.setVelocity(0, 0);
         sfx.play("gameOver");
         showOverlay(UI_TEXT.gameOver);
+        // Gemini の号泣顔を表示する。
+        RENDERER.createGeminiGameOverFace(this, CONFIG);
         return;
       }
 
@@ -710,6 +1071,121 @@
     */
     isFinalStage() {
       return this.stageIndex + 1 >= CONFIG.stages.length;
+    }
+
+    /*
+      敵を1体スポーンする関数です。
+      敵は画面上部中央に出現し、左右にゆっくり動きます。
+    */
+    spawnEnemy() {
+      const enemyX = CONFIG.width / 2;
+      const enemyY = 80;
+      const enemy = this.add.circle(enemyX, enemyY, 10, 0x000000);  // 黒い円
+      this.physics.add.existing(enemy, false);
+      enemy.body.setAllowGravity(false);
+      enemy.body.setCollideWorldBounds(true);
+      enemy.body.setBounce(1, 1);
+      enemy.setData("spawnTime", this.time.now);
+      
+      // 敵の描画（目玉と足を追加）
+      RENDERER.decorateEnemy(this, enemy);
+      
+      this.enemies.push(enemy);
+      this.hasSpawnedEnemy = true;
+    }
+
+    /*
+      ボスをスポーンする関数です。
+      最終ステージではHP=10の大型ボスが出現し、舌を表示します。
+      通常ステージではHP=5の通常ボスが出現します。
+    */
+    spawnBoss() {
+      if (this.boss) {
+        return;  // 既にボスが存在するなら何もしない
+      }
+      
+      // 最終ステージかどうかで異なるボスを出現させる
+      const isFinalBoss = this.isFinalStage();
+      const bossX = CONFIG.width / 2;
+      const bossY = 100;
+      const bossRadius = isFinalBoss ? 50 : 30;  // 最終ボスは大きい
+      const boss = this.add.circle(bossX, bossY, bossRadius, 0xffff00);  // 黄色い円
+      this.physics.add.existing(boss, false);
+      boss.body.setAllowGravity(false);
+      boss.body.setCollideWorldBounds(true);
+      boss.body.setBounce(1, 1);
+      boss.setData("spawnTime", this.time.now);
+      
+      // ボスの種別フラグをセット（描画時に使用）
+      boss.setData("isFinalBoss", isFinalBoss);
+      
+      // ボスの描画（ニコちゃん顔または舌付き顔）
+      RENDERER.decorateBoss(this, boss);
+      
+      this.boss = boss;
+      // 最終ボスはHP=10、通常ボスはHP=5
+      this.bossHp = isFinalBoss ? 10 : 5;
+    }
+
+    /*
+      移動ブロックの位置を毎フレーム更新する関数です。
+      moving フラグが true のブロックは、baseX を中心に左右に往復します。
+      振幅は ±40ピクセル、周期は約 3秒。
+    */
+    updateMovingBlocks() {
+      if (!this.bricks) {
+        return;
+      }
+
+      const elapsed = this.time.now / 1000;  // 秒単位での経過時間
+      const amplitude = 40;  // 移動範囲（±40ピクセル）
+      const frequency = 2 * Math.PI / 3;  // 周期 3秒
+
+      this.bricks.children.entries.forEach((brick) => {
+        if (brick.getData("moving")) {
+          const baseX = brick.getData("baseX");
+          // sin波で往復移動（-1 ～ +1）を amplitude で拡大。
+          const offset = Math.sin(elapsed * frequency) * amplitude;
+          brick.setX(baseX + offset);
+        }
+      });
+    }
+
+    /*
+      敵・ボスの位置を更新する関数です。
+      毎フレーム update 内で呼ばれ、敵・ボスが左右にゆっくり移動するようにします。
+    */
+    updateEnemyPositions() {
+      const elapsed = this.time.now / 1000;  // 秒単位での経過時間
+      
+      // 敵の移動（左右に振動）
+      this.enemies.forEach((enemy) => {
+        const baseX = CONFIG.width / 2;
+        const amplitude = 80;
+        const frequency = 1;
+        enemy.x = baseX + Math.sin(elapsed * frequency * Math.PI * 2) * amplitude;
+        enemy.x = Phaser.Math.Clamp(enemy.x, 30, CONFIG.width - 30);
+      });
+
+      // ボスの移動（敵より遅く移動）
+      if (this.boss) {
+        const baseX = CONFIG.width / 2;
+        const amplitude = 60;
+        const frequency = 0.5;
+        this.boss.x = baseX + Math.sin(elapsed * frequency * Math.PI * 2) * amplitude;
+        this.boss.x = Phaser.Math.Clamp(this.boss.x, 40, CONFIG.width - 40);
+      }
+    }
+
+    /*
+      すべての敵を削除する関数です。
+      ステージ切り替わり時などに呼ばれます。
+    */
+    destroyAllEnemies() {
+      this.enemies.forEach((enemy) => {
+        enemy.destroy();
+      });
+      this.enemies = [];
     }
 
     /*
@@ -751,18 +1227,23 @@
       通常衝突と同じ反射ロジックで処理します。
     */
     handlePaddlePassThroughFallback() {
+      // 全ボールに対してパドル抜けチェックを行う
       const halfPaddle = this.paddle.width / 2;
-      const movingDown = this.ball.body.velocity.y > 0;
       const paddleTop = this.paddle.y - this.paddle.height / 2;
-      const previousBottom = this.lastBallY + CONFIG.ballRadius;
-      const currentBottom = this.ball.y + CONFIG.ballRadius;
-      const withinPaddleX =
-        this.ball.x >= this.paddle.x - halfPaddle - CONFIG.ballRadius &&
-        this.ball.x <= this.paddle.x + halfPaddle + CONFIG.ballRadius;
 
-      if (movingDown && previousBottom <= paddleTop && currentBottom >= paddleTop && withinPaddleX) {
-        this.reflectBallFromPaddle(this.ball, this.paddle);
-      }
+      this.balls.forEach((ball) => {
+        const movingDown = ball.body.velocity.y > 0;
+        // 前フレームと今フレームのボール位置からパドル上面をまたいだか判定
+        const previousBottom = this.lastBallY + CONFIG.ballRadius;
+        const currentBottom = ball.y + CONFIG.ballRadius;
+        const withinPaddleX =
+          ball.x >= this.paddle.x - halfPaddle - CONFIG.ballRadius &&
+          ball.x <= this.paddle.x + halfPaddle + CONFIG.ballRadius;
+
+        if (movingDown && previousBottom <= paddleTop && currentBottom >= paddleTop && withinPaddleX) {
+          this.reflectBallFromPaddle(ball, this.paddle);
+        }
+      });
     }
 
     /*
@@ -777,7 +1258,11 @@
       6) 次フレーム比較用の座標保存
     */
     update() {
+      // 移動ブロックを毎フレーム更新。
+      this.updateMovingBlocks();
+      
       this.updatePaddleFromInput();
+      this.updateEnemyPositions();  // 敵・ボスの位置を毎フレーム更新
       RENDERER.syncActorDecorations(this, CONFIG);
 
       // スペースキーを「押した瞬間」だけ開始処理を呼ぶ。
@@ -798,13 +1283,20 @@
         this.handlePaddlePassThroughFallback();
       }
 
-      if (this.isPlayingPhase() && this.ball.y - CONFIG.ballRadius > CONFIG.height) {
-        // 画面下へ完全に落ちたらミスとして扱う。
-        this.handleLifeLost();
+      if (this.isPlayingPhase()) {
+        // 全ボールの画面下への落下判定
+        this.balls.forEach((ball) => {
+          if (ball.y - CONFIG.ballRadius > CONFIG.height) {
+            // 画面下へ完全に落ちたらミスとして扱う。
+            this.handleLifeLost();
+          }
+        });
       }
 
       // 次フレーム比較用に、今回のYを保存しておく。
-      this.lastBallY = this.ball.y;
+      if (this.balls.length > 0) {
+        this.lastBallY = this.balls[0].y;
+      }
     }
   }
 

@@ -14,6 +14,7 @@
       start: { type: "sine", frequency: 660, endFrequency: 990, duration: 0.08, volume: 0.9 },
       paddleBounce: { type: "triangle", frequency: 300, endFrequency: 380, duration: 0.035, volume: 0.5 },
       brickHit: { type: "square", frequency: 600, endFrequency: 280, duration: 0.045, volume: 0.55 },
+      clap: { type: "triangle", frequency: 500, endFrequency: 1000, duration: 0.3, volume: 0.65 },
       lifeLost: { type: "sawtooth", frequency: 180, endFrequency: 95, duration: 0.14, volume: 0.55 },
       gameOver: { type: "sawtooth", frequency: 150, endFrequency: 75, duration: 0.2, volume: 0.7 },
       stageClear: { type: "sine", frequency: 523.25, endFrequency: 880, duration: 0.12, volume: 0.7 },

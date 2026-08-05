@@ -31,6 +31,8 @@ window.BB = window.BB || {};
     を 1 箇所で行えるようにしています。
   */
   const UI_TEXT = {
+    // 装備選択画面の案内。
+    equipmentSelect: "装備を選んで、強化しよう！",
     // 初回開始時の案内。
     start: "タップしてスタート\n3ステージ全部に挑戦しよう",
     // ミス後の再開案内。
@@ -66,7 +68,9 @@ window.BB = window.BB || {};
     // パドル生成時の既定幅（ステージ適用前の初期値）。
     defaultPaddleWidth: 80,
     // 難易度未適用時のキーボード既定移動量。
-    defaultKeyboardSpeed: 8
+    defaultKeyboardSpeed: 8,
+    // ボール初期速度（装備システムで調整される場合がある）。
+    initialBallSpeed: 220
   };
   Object.freeze(TUNING);
 

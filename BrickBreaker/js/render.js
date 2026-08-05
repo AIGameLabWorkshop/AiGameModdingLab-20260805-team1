@@ -435,6 +435,46 @@
   }
 
   /*
+    ブロック破壊時の爆発エフェクト演出です。
+    破壊位置を中心に、小さなパーティクルが放射状に飛び散ります。
+  */
+  function createBrickExplosion(scene, x, y) {
+    // 爆発のパーティクルエミッターを作成
+    const emitter = scene.add.particles(0x0000ff).createEmitter({
+      // 発生位置
+      x: x,
+      y: y,
+      // スピード：100-200 px/s でランダム
+      speed: {min: 100, max: 200},
+      // 角度：360度全方向
+      angle: {min: 0, max: 360},
+      // スケール：小さな粒（最初 0.5-1.0、終了時 0.1）
+      scale: {start: 0.5, end: 0.1},
+      // ライフスパン：400-600ms
+      lifespan: {min: 400, max: 600},
+      // 発生量：一度に 8-12 個放射
+      emitZone: {
+        source: new Phaser.Geom.Circle(0, 0, 5),
+        type: "random",
+        quantity: 10
+      }
+    });
+
+    // パーティクルの色をオレンジ～黄色系に設定
+    emitter.setSpeed({min: 120, max: 220});
+    emitter.setScale({start: 0.6, end: 0.1});
+    emitter.setTint([0xff8c00, 0xffa500, 0xffd700]);
+
+    // 一度だけ放射してから自動で破棄
+    emitter.explode(10);
+
+    // 短時間後にエミッター自体を破棄
+    scene.time.delayedCall(1000, () => {
+      emitter.manager.destroy();
+    });
+  }
+
+  /*
     ヒット時の軽い明滅演出を入れる関数です。
     耐久が残っているときの手応えを視覚で補強します。
   */
@@ -468,12 +508,284 @@
       scene.paddleGlow.setDisplaySize(scene.paddle.width * 1.04, config.paddleHeight * 2.9);
     }
 
-    if (scene.ballGlow && scene.ball) {
-      scene.ballGlow.setPosition(scene.ball.x, scene.ball.y);
+    // 最初のボールのグロー・ハイライトのみ同期（100個全てはパフォーマンスの関係で不可）
+    if (scene.ballGlow && scene.balls && scene.balls.length > 0) {
+      scene.ballGlow.setPosition(scene.balls[0].x, scene.balls[0].y);
     }
 
-    if (scene.ballSpecular && scene.ball) {
-      scene.ballSpecular.setPosition(scene.ball.x - 2, scene.ball.y - 2);
+    if (scene.ballSpecular && scene.balls && scene.balls.length > 0) {
+      scene.ballSpecular.setPosition(scene.balls[0].x - 2, scene.balls[0].y - 2);
+    }
+  }
+
+  /*
+    Gemini の号泣顔を描画してゲームオーバー画面に表示する関数です。
+    Canvas テクスチャで顔を描画し、揺れアニメーション + 涙パーティクルを付けます。
+  */
+  function createGeminiGameOverFace(scene, config) {
+    // テクスチャキー
+    const textureKey = "bb:geminiGameOverFace";
+
+    // 1回だけテクスチャを作成
+    if (!scene.textures.exists(textureKey)) {
+      const size = 320; // 320x320 の Canvas で描画
+      const texture = scene.textures.createCanvas(textureKey, size, size);
+      const ctx = texture.getContext();
+
+      // 背景透明
+      ctx.clearRect(0, 0, size, size);
+
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const faceRadius = 120;
+      const eyeRadius = 16;
+
+      // 顔（黄色い円）
+      ctx.fillStyle = "#FFD700";
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, faceRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 顔の輪郭
+      ctx.strokeStyle = "rgba(255, 200, 0, 0.5)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // 左目（青い円）
+      ctx.fillStyle = "#1E90FF";
+      ctx.beginPath();
+      ctx.arc(centerX - 40, centerY - 35, eyeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 右目（青い円）
+      ctx.fillStyle = "#1E90FF";
+      ctx.beginPath();
+      ctx.arc(centerX + 40, centerY - 35, eyeRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 左瞳孔
+      ctx.fillStyle = "#000000";
+      ctx.beginPath();
+      ctx.arc(centerX - 40, centerY - 30, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 右瞳孔
+      ctx.fillStyle = "#000000";
+      ctx.beginPath();
+      ctx.arc(centerX + 40, centerY - 30, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 悲しい口（弧線）
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY + 40, 30, 0, Math.PI); // 下半分が悲しい形
+      ctx.stroke();
+
+      // 左涙
+      ctx.fillStyle = "rgba(100, 200, 255, 0.8)";
+      ctx.beginPath();
+      ctx.arc(centerX - 40, centerY, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 右涙
+      ctx.fillStyle = "rgba(100, 200, 255, 0.8)";
+      ctx.beginPath();
+      ctx.arc(centerX + 40, centerY, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      texture.refresh();
+    }
+
+    // Scene に配置
+    const faceImage = scene.add.image(config.width / 2, config.height / 2, textureKey);
+    faceImage.setDisplaySize(config.height * 0.6, config.height * 0.6);
+    faceImage.setDepth(100); // 最前面に表示
+    faceImage.setAlpha(0.9);
+
+    // 顔の揺れアニメーション（水平方向）
+    scene.tweens.add({
+      targets: faceImage,
+      x: config.width / 2 + 8,
+      duration: 120,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+
+    // 涙のパーティクルエミッター（左目から落ちる）
+    const leftTearEmitter = scene.add.particles(0xffffff).createEmitter({
+      x: config.width / 2 - 50,
+      y: config.height / 2 - 80,
+      speedY: { min: 40, max: 80 },
+      speedX: { min: -10, max: 10 },
+      lifespan: 2000,
+      gravityY: 100,
+      frequency: 150,
+      quantity: 1,
+      emitZone: {
+        type: "circle",
+        source: new Phaser.Geom.Circle(0, 0, 8)
+      }
+    });
+    leftTearEmitter.setTint(0x64C8FF);
+    leftTearEmitter.setAlpha({ start: 0.8, end: 0 });
+    leftTearEmitter.setScale({ start: 0.4, end: 0 });
+    leftTearEmitter.setDepth(101);
+
+    // 涙のパーティクルエミッター（右目から落ちる）
+    const rightTearEmitter = scene.add.particles(0xffffff).createEmitter({
+      x: config.width / 2 + 50,
+      y: config.height / 2 - 80,
+      speedY: { min: 40, max: 80 },
+      speedX: { min: -10, max: 10 },
+      lifespan: 2000,
+      gravityY: 100,
+      frequency: 150,
+      quantity: 1,
+      emitZone: {
+        type: "circle",
+        source: new Phaser.Geom.Circle(0, 0, 8)
+      }
+    });
+    rightTearEmitter.setTint(0x64C8FF);
+    rightTearEmitter.setAlpha({ start: 0.8, end: 0 });
+    rightTearEmitter.setScale({ start: 0.4, end: 0 });
+    rightTearEmitter.setDepth(101);
+
+    // Scene に参照を保持（クリーンアップ用）
+    scene.geminiGameOverFace = faceImage;
+    scene.tearEmitters = [leftTearEmitter, rightTearEmitter];
+
+    return { faceImage, tearEmitters: [leftTearEmitter, rightTearEmitter] };
+  }
+
+  /*
+    ゲームオーバー画面をクリーンアップする関数です。
+    Gemini の顔とパーティクルを破棄します。
+  */
+  function destroyGeminiGameOverFace(scene) {
+    if (scene.geminiGameOverFace && scene.geminiGameOverFace.active) {
+      scene.geminiGameOverFace.destroy();
+      scene.geminiGameOverFace = null;
+    }
+
+    if (scene.tearEmitters && Array.isArray(scene.tearEmitters)) {
+      scene.tearEmitters.forEach((emitter) => {
+        if (emitter && emitter.manager) {
+          emitter.manager.destroy();
+        }
+      });
+      scene.tearEmitters = [];
+    }
+  }
+
+  /*
+    敵キャラを描画する関数です。
+    黒い円の体に、白と黒の目玉を描きます。
+  */
+  function decorateEnemy(scene, enemy) {
+    const radius = 10;
+    const eyeRadius = 3;
+    const eyeDistance = 6;
+
+    // 左目（白）
+    const leftEyeWhite = scene.add.circle(
+      enemy.x - eyeDistance,
+      enemy.y - 2,
+      eyeRadius,
+      0xffffff
+    );
+    leftEyeWhite.setDepth(8);
+    enemy.setData("leftEyeWhite", leftEyeWhite);
+
+    // 左瞳孔（黒）
+    const leftPupil = scene.add.circle(
+      enemy.x - eyeDistance,
+      enemy.y - 2,
+      eyeRadius * 0.5,
+      0x000000
+    );
+    leftPupil.setDepth(9);
+    enemy.setData("leftPupil", leftPupil);
+
+    // 右目（白）
+    const rightEyeWhite = scene.add.circle(
+      enemy.x + eyeDistance,
+      enemy.y - 2,
+      eyeRadius,
+      0xffffff
+    );
+    rightEyeWhite.setDepth(8);
+    enemy.setData("rightEyeWhite", rightEyeWhite);
+
+    // 右瞳孔（黒）
+    const rightPupil = scene.add.circle(
+      enemy.x + eyeDistance,
+      enemy.y - 2,
+      eyeRadius * 0.5,
+      0x000000
+    );
+    rightPupil.setDepth(9);
+    enemy.setData("rightPupil", rightPupil);
+  }
+
+  /*
+    ボスキャラ（ニコちゃんマーク）を描画する関数です。
+    最終ステージでは舌付きボス、通常ステージではニコちゃん顔を描きます。
+  */
+  function decorateBoss(scene, boss) {
+    const isFinalBoss = boss.getData("isFinalBoss");
+    const radius = isFinalBoss ? 50 : 30;
+    const eyeRadius = isFinalBoss ? 8 : 5;
+    const eyeDistance = isFinalBoss ? 25 : 15;
+    const mouthRadius = isFinalBoss ? 20 : 12;
+
+    // 左目（黒）
+    const leftEye = scene.add.circle(
+      boss.x - eyeDistance,
+      boss.y - (radius / 4),
+      eyeRadius,
+      0x000000
+    );
+    leftEye.setDepth(8);
+    boss.setData("leftEye", leftEye);
+
+    // 右目（黒）
+    const rightEye = scene.add.circle(
+      boss.x + eyeDistance,
+      boss.y - (radius / 4),
+      eyeRadius,
+      0x000000
+    );
+    rightEye.setDepth(8);
+    boss.setData("rightEye", rightEye);
+
+    if (isFinalBoss) {
+      // 最終ボス：舌付き顔を描く
+      // 口（下向き弧線）
+      const mouth = scene.add.graphics();
+      mouth.lineStyle(4, 0x000000);
+      mouth.arc(boss.x, boss.y + 10, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.setDepth(8);
+      boss.setData("mouth", mouth);
+      
+      // 舌（赤色）を描く
+      const tongue = scene.add.graphics();
+      tongue.fillStyle(0xff0000, 1);  // 赤色
+      // 舌を描く：ボスの下部からぶら下がる形状
+      tongue.fillRect(boss.x - 6, boss.y + radius / 2, 12, 20);
+      tongue.fillCircle(boss.x, boss.y + radius / 2 + 20, 8);
+      tongue.setDepth(8);
+      boss.setData("tongue", tongue);
+    } else {
+      // 通常ボス：ニコちゃん顔を描く
+      // 口（弧線を Graphics で描画）
+      const mouth = scene.add.graphics();
+      mouth.lineStyle(3, 0x000000);
+      mouth.arc(boss.x, boss.y + 12, mouthRadius, 0, Math.PI);  // 下向きの弧
+      mouth.setDepth(8);
+      boss.setData("mouth", mouth);
     }
   }
 
@@ -494,7 +806,12 @@
     decorateBrick,
     clearBrickDecorations,
     destroyBrickDecorations,
+    createBrickExplosion,
     flashBrickVisual,
-    syncActorDecorations
+    syncActorDecorations,
+    createGeminiGameOverFace,
+    destroyGeminiGameOverFace,
+    decorateEnemy,
+    decorateBoss
   };
 })();
